@@ -9,7 +9,7 @@ package example
 // ...
 ```
 
-run `goconfig -type Size|int,flag.ErrorHandling -option` then generate
+run `goconfig -type "Size|int,flag.ErrorHandling" -option` then generate
 
 ``` go
 package example
