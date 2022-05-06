@@ -217,6 +217,12 @@ func %[2]s Get() T {
   }
   return s.defaultValue
 }
+func %[2]s Default() T {
+  return s.defaultValue
+}
+func %[2]s IsModified() bool {
+  return s.modified
+}
 func %[3]s[T any](defaultValue T) *%[1]s[T] {
   return &%[1]s[T]{
     defaultValue: defaultValue,

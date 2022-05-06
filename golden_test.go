@@ -48,6 +48,12 @@ func (s *Item[T]) Get() T {
        }
        return s.defaultValue
 }
+func (s *Item[T]) Default() T {
+       return s.defaultValue
+}
+func (s *Item[T]) IsModified() bool {
+       return s.modified
+}
 func NewItem[T any](defaultValue T) *Item[T] {
        return &Item[T]{
                defaultValue: defaultValue,
@@ -96,6 +102,12 @@ func (s *Item[T]) Get() T {
                return s.value
        }
        return s.defaultValue
+}
+func (s *Item[T]) Default() T {
+       return s.defaultValue
+}
+func (s *Item[T]) IsModified() bool {
+       return s.modified
 }
 func NewItem[T any](defaultValue T) *Item[T] {
        return &Item[T]{
@@ -146,6 +158,12 @@ func (s *Item[T]) Get() T {
        }
        return s.defaultValue
 }
+func (s *Item[T]) Default() T {
+       return s.defaultValue
+}
+func (s *Item[T]) IsModified() bool {
+       return s.modified
+}
 func NewItem[T any](defaultValue T) *Item[T] {
        return &Item[T]{
                defaultValue: defaultValue,
@@ -194,6 +212,12 @@ func (s *Item[T]) Get() T {
                return s.value
        }
        return s.defaultValue
+}
+func (s *Item[T]) Default() T {
+       return s.defaultValue
+}
+func (s *Item[T]) IsModified() bool {
+       return s.modified
 }
 func NewItem[T any](defaultValue T) *Item[T] {
        return &Item[T]{
