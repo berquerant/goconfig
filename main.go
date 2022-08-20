@@ -27,7 +27,7 @@ var (
 const usage = `Usage of goconfig:
   goconfig [flags] -type T [directory]
 
-T is list of "typeName" or "fieldName|typeName".
+T is list of "typeName" or "fieldName typeName".
 Flags:`
 
 func Usage() {
@@ -243,8 +243,8 @@ func parseConfigFields(typeNames string) []*configField {
 	ss := strings.Split(typeNames, ",")
 	fs := make([]*configField, len(ss))
 	for i, s := range ss {
-		xs := strings.Split(s, "|")
-		if len(xs) == 2 { // fieldName|typeName
+		xs := strings.Split(s, " ")
+		if len(xs) == 2 { // fieldName typeName
 			fs[i] = &configField{
 				typeName:  xs[1],
 				fieldName: capitalize(xs[0]), // as public field

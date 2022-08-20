@@ -27,7 +27,7 @@ func TestGolden(t *testing.T) {
 	}{
 		{
 			name:              "minimum",
-			typeName:          "I|int",
+			typeName:          "I int",
 			configType:        "Config",
 			configItemType:    "Item",
 			configBuilderType: "Builder",
@@ -137,7 +137,7 @@ func NewBuilder() *Builder { return &Builder{} }
 		},
 		{
 			name:              "alias",
-			typeName:          "Handler|flag.ErrorHandling",
+			typeName:          "Handler flag.ErrorHandling",
 			configType:        "Config",
 			configItemType:    "Item",
 			configBuilderType: "Builder",
@@ -192,7 +192,7 @@ func NewBuilder() *Builder { return &Builder{} }
 		},
 		{
 			name:              "types",
-			typeName:          "B|bool,Handler|flag.ErrorHandling,flag.ErrorHandling",
+			typeName:          "B bool,Handler flag.ErrorHandling,flag.ErrorHandling",
 			configType:        "Config",
 			configItemType:    "Item",
 			configBuilderType: "Builder",

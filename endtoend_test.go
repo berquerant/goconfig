@@ -27,7 +27,7 @@ func TestEndToEnd(t *testing.T) {
 		{
 			name:              "types",
 			fileName:          "types.go",
-			typeName:          "Size|int,Rule,Reverse|Rule,io.Reader",
+			typeName:          "Size int,Rule,Reverse Rule,io.Reader",
 			configType:        "Config",
 			configItemType:    "Item",
 			configBuilderType: "Builder",
