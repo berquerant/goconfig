@@ -9,10 +9,10 @@ package example
 // ...
 ```
 
-run `goconfig -type "Size int,flag.ErrorHandling" -option` then generate
+run `goconfig -field Size int|ErrorHandling flag.ErrorHandling -option` then generate
 
 ``` go
-package example
+package main
 
 import "flag"
 

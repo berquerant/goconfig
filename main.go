@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"go/parser"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -14,7 +16,7 @@ import (
 )
 
 var (
-	typeNames         = flag.String("type", "", "comma-separated list of type names; must be set")
+	fields            = flag.String("field", "", "list of fields by '|'; must be set")
 	configType        = flag.String("config", "Config", "type name of config")
 	configItemType    = flag.String("configItem", "ConfigItem", "type name of config item")
 	configBuilderType = flag.String("configBuilder", "ConfigBuilder", "type name of config builder")
@@ -25,9 +27,17 @@ var (
 )
 
 const usage = `Usage of goconfig:
-  goconfig [flags] -type T [directory]
+  goconfig [flags] -field F [directory]
 
-T is list of "typeName" or "fieldName typeName".
+F is list of "fieldName typeName" separated by "|".
+
+Environment variables:
+  GOCONFIG_DEBUG
+    If set, enable debug logs.
+
+  GOCONFIG_STDOUT
+    If set, write result to stdout.
+
 Flags:`
 
 func Usage() {
@@ -35,18 +45,32 @@ func Usage() {
 	flag.PrintDefaults()
 }
 
+var (
+	debug            = false
+	redirectToStdout = false
+)
+
+func parseEnv() {
+	debug = os.Getenv("GOCONFIG_DEBUG") != ""
+	if debug {
+		log.Println("Debug enabled")
+	}
+	redirectToStdout = os.Getenv("GOCONFIG_STDOUT") != ""
+}
+
 func main() {
 	log.SetFlags(0)
-	log.SetPrefix("config: ")
+	log.SetPrefix("goconfig: ")
 	flag.Usage = Usage
 	flag.Parse()
+	parseEnv()
 
-	if len(*typeNames) == 0 {
-		log.Fatal("type must be set")
+	if len(*fields) == 0 {
+		log.Fatal("field option must be set")
 	}
 
 	g := newGenerator(
-		*typeNames,
+		*fields,
 		*configType,
 		*configItemType,
 		*configBuilderType,
@@ -63,18 +87,53 @@ func main() {
 	g.generate()
 
 	if err := writeResult(g.bytes()); err != nil {
-		log.Panicf("write file %v", err)
-	}
-	gi := &goImporter{
-		goImports:  *goImports,
-		targetFile: destFilename(),
-	}
-	if err := gi.doImport(); err != nil {
-		log.Panicf("goimports %v", err)
+		log.Panic(err)
 	}
 }
 
-func writeResult(src []byte) error { return os.WriteFile(destFilename(), src, 0600) }
+func writeResult(src []byte) error {
+	if redirectToStdout {
+		return writeResultToStdout(src)
+	}
+	return writeResultToDestfile(src)
+}
+
+func writeResultToStdout(src []byte) error {
+	f, err := os.CreateTemp("", "goconfig")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+	defer os.Remove(f.Name())
+
+	if err := writeResultAndFormat(src, f.Name()); err != nil {
+		return err
+	}
+	if _, err := f.Seek(0, os.SEEK_SET); err != nil {
+		return err
+	}
+	if _, err := io.Copy(os.Stdout, f); err != nil {
+		return err
+	}
+	return nil
+}
+
+func writeResultToDestfile(src []byte) error {
+	return writeResultAndFormat(src, destFilename())
+}
+
+func writeResultAndFormat(src []byte, fileName string) error {
+	if err := os.WriteFile(fileName, src, 0600); err != nil {
+		return fmt.Errorf("failed to write to %s: %w", fileName, err)
+	}
+	gi := &goImporter{
+		goImports:  *goImports,
+		targetFile: fileName,
+	}
+	if err := gi.doImport(); err != nil {
+		return fmt.Errorf("failed to goimport: %w", err)
+	}
+	return nil
+}
 
 func destFilename() string {
 	if *output != "" {
@@ -97,7 +156,7 @@ func destDir() string {
 func isDirectory(p string) bool {
 	x, err := os.Stat(p)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("directory: %v", err)
 	}
 	return x.IsDir()
 }
@@ -114,7 +173,7 @@ func (s *goImporter) doImport() error {
 }
 
 func newGenerator(
-	typeName,
+	fields,
 	configType,
 	configItemType,
 	configBuilderType,
@@ -128,7 +187,7 @@ func newGenerator(
 	conf := &config{
 		typeName:   configType,
 		configItem: item,
-		fields:     parseConfigFields(typeName),
+		fields:     parseConfigFields(fields),
 	}
 	builder := &configBuilder{
 		typeName:    configBuilderType,
@@ -168,12 +227,13 @@ func (s *generator) parsePackage(patterns []string) {
 		Mode: packages.NeedName,
 	}, patterns...)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("load: %v", err)
 	}
 	if len(pkgs) != 1 {
 		log.Fatalf("%d packages found", len(pkgs))
 	}
 	s.pkgName = pkgs[0].Name
+	debugf("Found package: %s", s.pkgName)
 }
 
 func (s *generator) generate() {
@@ -239,24 +299,37 @@ func decapitalize(v string) string {
 	return fmt.Sprintf("%s%s", strings.ToLower(string(v[0])), v[1:])
 }
 
-func parseConfigFields(typeNames string) []*configField {
-	ss := strings.Split(typeNames, ",")
+func parseConfigField(field string) (*configField, error) {
+	xs := strings.SplitN(field, " ", 2)
+	if len(xs) != 2 {
+		return nil, fmt.Errorf("field must have fieldName and typeName: %s", field)
+	}
+
+	fieldName := xs[0]
+	typeName := xs[1]
+
+	// validate typename
+	if _, err := parser.ParseExpr(typeName); err != nil {
+		return nil, fmt.Errorf("failed to parse field %s: %w", field, err)
+	}
+
+	return &configField{
+		fieldName: capitalize(fieldName), // as public field
+		typeName:  typeName,
+	}, nil
+}
+
+func parseConfigFields(fields string) []*configField {
+	ss := strings.Split(fields, "|")
 	fs := make([]*configField, len(ss))
 	for i, s := range ss {
-		xs := strings.Split(s, " ")
-		if len(xs) == 2 { // fieldName typeName
-			fs[i] = &configField{
-				typeName:  xs[1],
-				fieldName: capitalize(xs[0]), // as public field
-			}
-			continue
+		debugf("Parse field[%d]: %s", i, s)
+		f, err := parseConfigField(s)
+		if err != nil {
+			log.Fatalf("Failed to parse field[%d]: %v", i, err)
 		}
-		ms := strings.Split(s, ".") // pkg.type
-		t := ms[len(ms)-1]          //select type
-		fs[i] = &configField{
-			typeName:  s,
-			fieldName: capitalize(t), // as public field
-		}
+		debugf("Parse field[%d]: %s -> fieldName = %s typeName = %s", i, s, f.fieldName, f.typeName)
+		fs[i] = f
 	}
 	return fs
 }
@@ -360,4 +433,10 @@ func (s *configBuilder) generate() string {
 	b.write(s.generateMethods())
 	b.write(s.generateConstructor())
 	return b.String()
+}
+
+func debugf(format string, v ...any) {
+	if debug {
+		log.Printf(format, v...)
+	}
 }
