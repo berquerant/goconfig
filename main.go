@@ -24,6 +24,7 @@ var (
 	needOption        = flag.Bool("option", false, "generate option functions as WithXXX style")
 	goImports         = flag.String("goimports", "goimports", "goimports executable")
 	output            = flag.String("output", "", "output file name; default srcdir/config.go")
+	typePrefix        = flag.String("prefix", "", "prefix for generated types")
 )
 
 const usage = `Usage of goconfig:
@@ -58,12 +59,25 @@ func parseEnv() {
 	redirectToStdout = os.Getenv("GOCONFIG_STDOUT") != ""
 }
 
+func appendPrefix() {
+	prefix := capitalize(*typePrefix)
+	for _, p := range []*string{
+		configType,
+		configItemType,
+		configBuilderType,
+		configOptionType,
+	} {
+		*p = fmt.Sprintf("%s%s", prefix, *p)
+	}
+}
+
 func main() {
 	log.SetFlags(0)
 	log.SetPrefix("goconfig: ")
 	flag.Usage = Usage
 	flag.Parse()
 	parseEnv()
+	appendPrefix()
 
 	if len(*fields) == 0 {
 		log.Fatal("field option must be set")
@@ -292,10 +306,16 @@ func %[3]s[T any](defaultValue T) *%[1]s[T] {
 }
 
 func capitalize(v string) string {
+	if v == "" {
+		return ""
+	}
 	return fmt.Sprintf("%s%s", strings.ToUpper(string(v[0])), v[1:])
 }
 
 func decapitalize(v string) string {
+	if v == "" {
+		return ""
+	}
 	return fmt.Sprintf("%s%s", strings.ToLower(string(v[0])), v[1:])
 }
 

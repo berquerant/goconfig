@@ -19,6 +19,7 @@ type endToEndTestcase struct {
 	configBuilderType string
 	configOptionType  string
 	needOption        bool
+	typePrefix        string
 }
 
 func (tc *endToEndTestcase) test(t *testing.T, caseNumber int, g *goConfig) {
@@ -32,6 +33,7 @@ func (tc *endToEndTestcase) test(t *testing.T, caseNumber int, g *goConfig) {
 		tc.configBuilderType,
 		tc.configOptionType,
 		tc.needOption,
+		tc.typePrefix,
 	)
 }
 
@@ -101,6 +103,18 @@ func TestEndToEnd(t *testing.T) {
 			configBuilderType: "Builder",
 			configOptionType:  "Option",
 			needOption:        true,
+			typePrefix:        "",
+		},
+		{
+			name:              "types-prefix",
+			fileName:          "types_prefix.go",
+			field:             "Size int|Rule Rule|Reverse Rule|Reader io.Reader",
+			configType:        "Config",
+			configItemType:    "Item",
+			configBuilderType: "Builder",
+			configOptionType:  "Option",
+			needOption:        true,
+			typePrefix:        "Prefix",
 		},
 	}
 
@@ -169,6 +183,7 @@ func (s *goConfig) compileAndRun(
 	configBuilderType,
 	configOptionType string,
 	needOption bool,
+	typePrefix string,
 ) {
 	t.Helper()
 
@@ -185,6 +200,7 @@ func (s *goConfig) compileAndRun(
 	args.add("-configItem", configItemType)
 	args.add("-configBuilder", configBuilderType)
 	args.add("-configOption", configOptionType)
+	args.add("-prefix", typePrefix)
 	if needOption {
 		args.args = append(args.args, "-option")
 	}
@@ -243,6 +259,7 @@ func generateSimpleEndToEndTestcase(dir, name, typeName string) (*endToEndTestca
 		configBuilderType: "Builder",
 		configOptionType:  "Option",
 		needOption:        true,
+		typePrefix:        "",
 	}, nil
 }
 
