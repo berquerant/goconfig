@@ -15,18 +15,6 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-var (
-	fields            = flag.String("field", "", "list of fields by '|'; must be set")
-	configType        = flag.String("config", "Config", "type name of config")
-	configItemType    = flag.String("configItem", "ConfigItem", "type name of config item")
-	configBuilderType = flag.String("configBuilder", "ConfigBuilder", "type name of config builder")
-	configOptionType  = flag.String("configOption", "ConfigOption", "type name of config option")
-	needOption        = flag.Bool("option", false, "generate option functions as WithXXX style")
-	goImports         = flag.String("goimports", "goimports", "goimports executable")
-	output            = flag.String("output", "", "output file name; default srcdir/config.go")
-	typePrefix        = flag.String("prefix", "", "prefix for generated types")
-)
-
 const usage = `Usage of goconfig:
   goconfig [flags] -field F [directory]
 
@@ -46,20 +34,33 @@ func Usage() {
 	flag.PrintDefaults()
 }
 
-var (
-	debug            = false
-	redirectToStdout = false
-)
+var debugf = func(format string, v ...any) {}
 
-func parseEnv() {
-	debug = os.Getenv("GOCONFIG_DEBUG") != ""
+func main() {
+	var (
+		fields            = flag.String("field", "", "list of fields by '|'; must be set")
+		configType        = flag.String("config", "Config", "type name of config")
+		configItemType    = flag.String("configItem", "ConfigItem", "type name of config item")
+		configBuilderType = flag.String("configBuilder", "ConfigBuilder", "type name of config builder")
+		configOptionType  = flag.String("configOption", "ConfigOption", "type name of config option")
+		needOption        = flag.Bool("option", false, "generate option functions as WithXXX style")
+		goImports         = flag.String("goimports", "goimports", "goimports executable")
+		output            = flag.String("output", "", "output file name; default srcdir/config.go")
+		typePrefix        = flag.String("prefix", "", "prefix for generated types")
+
+		redirectToStdout = os.Getenv("GOCONFIG_STDOUT") != ""
+		debug            = os.Getenv("GOCONFIG_DEBUG") != ""
+	)
+
 	if debug {
-		log.Println("Debug enabled")
+		debugf = log.Printf
 	}
-	redirectToStdout = os.Getenv("GOCONFIG_STDOUT") != ""
-}
 
-func appendPrefix() {
+	log.SetFlags(0)
+	log.SetPrefix("goconfig: ")
+	flag.Usage = Usage
+	flag.Parse()
+
 	prefix := capitalize(*typePrefix)
 	for _, p := range []*string{
 		configType,
@@ -69,15 +70,6 @@ func appendPrefix() {
 	} {
 		*p = fmt.Sprintf("%s%s", prefix, *p)
 	}
-}
-
-func main() {
-	log.SetFlags(0)
-	log.SetPrefix("goconfig: ")
-	flag.Usage = Usage
-	flag.Parse()
-	parseEnv()
-	appendPrefix()
 
 	if len(*fields) == 0 {
 		log.Fatal("field option must be set")
@@ -100,26 +92,26 @@ func main() {
 
 	g.generate()
 
-	if err := writeResult(g.bytes()); err != nil {
+	writeResult := func(src []byte, args []string) error {
+		if redirectToStdout {
+			return writeResultToStdout(src, *goImports)
+		}
+		return writeResultToDestfile(src, *output, args, *goImports)
+	}
+
+	if err := writeResult(g.bytes(), flag.Args()); err != nil {
 		log.Panic(err)
 	}
 }
 
-func writeResult(src []byte) error {
-	if redirectToStdout {
-		return writeResultToStdout(src)
-	}
-	return writeResultToDestfile(src)
-}
-
-func writeResultToStdout(src []byte) error {
+func writeResultToStdout(src []byte, goImports string) error {
 	f, err := os.CreateTemp("", "goconfig")
 	if err != nil {
 		return fmt.Errorf("failed to create temp file: %w", err)
 	}
 	defer os.Remove(f.Name())
 
-	if err := writeResultAndFormat(src, f.Name()); err != nil {
+	if err := writeResultAndFormat(src, f.Name(), goImports); err != nil {
 		return err
 	}
 	if _, err := f.Seek(0, os.SEEK_SET); err != nil {
@@ -131,16 +123,16 @@ func writeResultToStdout(src []byte) error {
 	return nil
 }
 
-func writeResultToDestfile(src []byte) error {
-	return writeResultAndFormat(src, destFilename())
+func writeResultToDestfile(src []byte, output string, args []string, goImports string) error {
+	return writeResultAndFormat(src, destFilename(output, args), goImports)
 }
 
-func writeResultAndFormat(src []byte, fileName string) error {
+func writeResultAndFormat(src []byte, fileName, goImports string) error {
 	if err := os.WriteFile(fileName, src, 0600); err != nil {
 		return fmt.Errorf("failed to write to %s: %w", fileName, err)
 	}
 	gi := &goImporter{
-		goImports:  *goImports,
+		goImports:  goImports,
 		targetFile: fileName,
 	}
 	if err := gi.doImport(); err != nil {
@@ -149,15 +141,14 @@ func writeResultAndFormat(src []byte, fileName string) error {
 	return nil
 }
 
-func destFilename() string {
-	if *output != "" {
-		return *output
+func destFilename(output string, args []string) string {
+	if output != "" {
+		return output
 	}
-	return filepath.Join(destDir(), "config.go")
+	return filepath.Join(destDir(args), "config.go")
 }
 
-func destDir() string {
-	args := flag.Args()
+func destDir(args []string) string {
 	if len(args) == 0 {
 		args = []string{"."}
 	}
@@ -453,10 +444,4 @@ func (s *configBuilder) generate() string {
 	b.write(s.generateMethods())
 	b.write(s.generateConstructor())
 	return b.String()
-}
-
-func debugf(format string, v ...any) {
-	if debug {
-		log.Printf(format, v...)
-	}
 }
