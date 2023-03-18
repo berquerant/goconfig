@@ -44,7 +44,6 @@ func main() {
 		configBuilderType = flag.String("configBuilder", "ConfigBuilder", "type name of config builder")
 		configOptionType  = flag.String("configOption", "ConfigOption", "type name of config option")
 		needOption        = flag.Bool("option", false, "generate option functions as WithXXX style")
-		goImports         = flag.String("goimports", "goimports", "goimports executable")
 		output            = flag.String("output", "", "output file name; default srcdir/config.go")
 		typePrefix        = flag.String("prefix", "", "prefix for generated types")
 
@@ -94,9 +93,9 @@ func main() {
 
 	writeResult := func(src []byte, args []string) error {
 		if redirectToStdout {
-			return writeResultToStdout(src, *goImports)
+			return writeResultToStdout(src)
 		}
-		return writeResultToDestfile(src, *output, args, *goImports)
+		return writeResultToDestfile(src, *output, args)
 	}
 
 	if err := writeResult(g.bytes(), flag.Args()); err != nil {
@@ -104,14 +103,14 @@ func main() {
 	}
 }
 
-func writeResultToStdout(src []byte, goImports string) error {
+func writeResultToStdout(src []byte) error {
 	f, err := os.CreateTemp("", "goconfig")
 	if err != nil {
 		return fmt.Errorf("failed to create temp file: %w", err)
 	}
 	defer os.Remove(f.Name())
 
-	if err := writeResultAndFormat(src, f.Name(), goImports); err != nil {
+	if err := writeResultAndFormat(src, f.Name()); err != nil {
 		return err
 	}
 	if _, err := f.Seek(0, os.SEEK_SET); err != nil {
@@ -123,19 +122,17 @@ func writeResultToStdout(src []byte, goImports string) error {
 	return nil
 }
 
-func writeResultToDestfile(src []byte, output string, args []string, goImports string) error {
-	return writeResultAndFormat(src, destFilename(output, args), goImports)
+func writeResultToDestfile(src []byte, output string, args []string) error {
+	return writeResultAndFormat(src, destFilename(output, args))
 }
 
-func writeResultAndFormat(src []byte, fileName, goImports string) error {
+func writeResultAndFormat(src []byte, fileName string) error {
 	if err := os.WriteFile(fileName, src, 0600); err != nil {
 		return fmt.Errorf("failed to write to %s: %w", fileName, err)
 	}
-	gi := &goImporter{
-		goImports:  goImports,
-		targetFile: fileName,
-	}
-	if err := gi.doImport(); err != nil {
+	cmd := exec.Command("go", "run", "golang.org/x/tools/cmd/goimports@v0.7.0", "-w", fileName)
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to goimport: %w", err)
 	}
 	return nil
@@ -164,17 +161,6 @@ func isDirectory(p string) bool {
 		log.Fatalf("directory: %v", err)
 	}
 	return x.IsDir()
-}
-
-type goImporter struct {
-	goImports  string
-	targetFile string
-}
-
-func (s *goImporter) doImport() error {
-	cmd := exec.Command(s.goImports, "-w", s.targetFile)
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
 }
 
 func newGenerator(
