@@ -211,6 +211,7 @@ type generator struct {
 }
 
 func (s *generator) Printf(format string, v ...any) { fmt.Fprintf(&s.buf, format, v...) }
+func (s *generator) Print(v string)                 { fmt.Fprint(&s.buf, v) }
 func (s *generator) Println(v ...any)               { fmt.Fprintln(&s.buf, v...) }
 
 func (s *generator) parsePackage(patterns []string) {
@@ -228,11 +229,11 @@ func (s *generator) parsePackage(patterns []string) {
 }
 
 func (s *generator) generate() {
-	s.Printf(s.item.generate())
-	s.Printf(s.conf.generate())
-	s.Printf(s.builder.generate())
+	s.Print(s.item.generate())
+	s.Print(s.conf.generate())
+	s.Print(s.builder.generate())
 	if s.needOption {
-		s.Printf(s.option.generate())
+		s.Print(s.option.generate())
 	}
 }
 
@@ -242,8 +243,11 @@ type stringBuilder struct {
 	strings.Builder
 }
 
-func (s *stringBuilder) write(format string, v ...any) {
+func (s *stringBuilder) writef(format string, v ...any) {
 	s.WriteString(fmt.Sprintf("%s\n", fmt.Sprintf(format, v...)))
+}
+func (s *stringBuilder) write(v string) {
+	s.WriteString(fmt.Sprintf("%s\n", v))
 }
 
 type configItem struct {
@@ -344,10 +348,10 @@ type config struct {
 
 func (s *config) generate() string {
 	var b stringBuilder
-	b.write("type %s struct {", s.typeName)
+	b.writef("type %s struct {", s.typeName)
 	for _, f := range s.fields {
 		t := fmt.Sprintf("*%s[%s]", s.configItem.typeName, f.typeName) // config item type is generic
-		b.write("%s %s", f.fieldName, t)
+		b.writef("%s %s", f.fieldName, t)
 	}
 	b.write("}") // struct
 	return b.String()
@@ -369,10 +373,10 @@ func (s *configOption) generateConfigApply() string {
 func (s *configOption) generate() string {
 	var b stringBuilder
 	b.write(s.generateConfigApply())
-	b.write("type %s func(*%s)", s.typeName, s.config.typeName)
+	b.writef("type %s func(*%s)", s.typeName, s.config.typeName)
 	for _, f := range s.config.fields {
 		withSig := fmt.Sprintf("func With%s(v %s) %s", f.fieldName, f.typeName, s.typeName)
-		b.write(`%[1]s {
+		b.writef(`%[1]s {
   return func(c *%[2]s) {
     c.%[3]s.Set(v)
   }
@@ -397,9 +401,9 @@ func (s *configBuilder) generateConstructor() string {
 
 func (s *configBuilder) generateType() string {
 	var b stringBuilder
-	b.write("type %s struct {", s.typeName)
+	b.writef("type %s struct {", s.typeName)
 	for i, f := range s.config.fields {
-		b.write("%s %s", s.fieldName(i), f.typeName)
+		b.writef("%s %s", s.fieldName(i), f.typeName)
 	}
 	b.write("}") // struct
 	return b.String()
@@ -408,16 +412,16 @@ func (s *configBuilder) generateType() string {
 func (s *configBuilder) generateMethods() string {
 	var b stringBuilder
 	for i, f := range s.config.fields {
-		b.write(`func (s *%[1]s) %[2]s(v %[3]s) *%[1]s {
+		b.writef(`func (s *%[1]s) %[2]s(v %[3]s) *%[1]s {
   s.%[4]s = v
   return s
 }`, s.typeName, f.fieldName, f.typeName, s.fieldName(i))
 	}
 	// Build()
-	b.write("func (s *%s) Build() *%s {", s.typeName, s.config.typeName)
-	b.write("return &%s{", s.config.typeName)
+	b.writef("func (s *%s) Build() *%s {", s.typeName, s.config.typeName)
+	b.writef("return &%s{", s.config.typeName)
 	for i, f := range s.config.fields {
-		b.write("%s: %s(s.%s),", f.fieldName, s.config.configItem.constructor, s.fieldName(i))
+		b.writef("%s: %s(s.%s),", f.fieldName, s.config.configItem.constructor, s.fieldName(i))
 	}
 	b.write("}") // return
 	b.write("}")
