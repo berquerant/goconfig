@@ -26,6 +26,4 @@ jobs:
           go-version-file: go.mod
           cache-dependency-path: go.sum
       - name: Test
-        run: go test -v -cover
-        env:
-          GOCONFIG_DEBUG: 1
+        run: go test -cover
