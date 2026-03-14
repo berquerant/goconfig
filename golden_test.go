@@ -375,7 +375,6 @@ func NewBuilder() *Builder { return &Builder{} }
 	testcases := append(simpleTestcases, compositeTestcases...)
 
 	for _, tc := range testcases {
-		tc := tc
 		t.Run(tc.name, tc.test)
 	}
 }

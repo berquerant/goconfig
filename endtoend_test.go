@@ -121,8 +121,6 @@ func TestEndToEnd(t *testing.T) {
 	testcases := append(simpleTestcases, compositeTestcases...)
 
 	for i, tc := range testcases {
-		i := i
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			tc.test(t, i, g)
 		})
